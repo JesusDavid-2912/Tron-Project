@@ -418,6 +418,8 @@ class TronClientApp:
             self.notice_var.set("No se pudo enviar la acción al servidor.")
 
     def _on_key_press(self, event: tk.Event) -> None:
+        if isinstance(self.root.focus_get(), tk.Entry):
+            return
         direction_by_key = {
             "Up": "up",
             "w": "up",
