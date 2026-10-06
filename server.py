@@ -238,7 +238,7 @@ class GameServer:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Servidor TCP para Tron multijugador")
-    parser.add_argument("--host", default="0.0.0.0", help="Interfaz de red (por defecto: todas)")
+    parser.add_argument("--host", default="10.98.85.88", help="Interfaz de red (por defecto: todas)")
     parser.add_argument("--port", type=int, default=5050, help="Puerto TCP (por defecto: 5050)")
     parser.add_argument("--tick-rate", type=int, default=10, help="Pasos de juego por segundo (1-30)")
     args = parser.parse_args()

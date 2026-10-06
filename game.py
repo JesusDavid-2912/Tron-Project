@@ -81,11 +81,11 @@ class GameState:
         self.players.pop(player_id, None)
 
     def start(self) -> None:
-        """Inicia la ronda cuando hay al menos tres participantes."""
+        """Inicia la ronda cuando hay al menos dos participantes."""
         if self.phase != "lobby":
             raise ValueError("La sala no está esperando jugadores")
-        if len(self.players) < 3:
-            raise ValueError("Se necesitan al menos 3 jugadores")
+        if len(self.players) < 2:
+            raise ValueError("Se necesitan al menos 2 jugadores")
         self.phase = "running"
 
     def set_direction(self, player_id: str, direction: str) -> bool:

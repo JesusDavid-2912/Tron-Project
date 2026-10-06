@@ -316,7 +316,10 @@ class TronClientApp:
                 self.snapshot = message.get("snapshot")
                 self._update_game_view()
             elif message_type == "state":
+                was_running = self.snapshot is not None and self.snapshot.get("phase") == "running"
                 self.snapshot = message.get("snapshot")
+                if self.snapshot.get("phase") == "running" and not was_running:
+                    self.canvas.focus_set()
                 self._update_game_view()
             elif message_type == "error":
                 self.notice_var.set(message.get("message", "Error del servidor"))
