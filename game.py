@@ -27,7 +27,11 @@ OPPOSITE = {"up": "down", "down": "up", "left": "right", "right": "left"}
 
 @dataclass
 class Player:
-    """Estado persistente de un jugador durante una ronda."""
+    """Estado de una moto y su estela durante una ronda.
+
+    `pending_direction` guarda el último giro aceptado hasta el siguiente paso
+    de simulación; así el servidor aplica los movimientos de forma ordenada.
+    """
 
     player_id: str
     name: str
@@ -41,16 +45,33 @@ class Player:
 
 
 class GameState:
-    """Mantiene los jugadores y aplica las reglas de la partida."""
+    """Mantiene el estado autoritativo y aplica las reglas de la partida.
+
+    `phase` toma los valores `lobby`, `running` o `finished`. El modelo no
+    depende de sockets ni de la interfaz, por lo que sus reglas se prueban
+    de manera independiente.
+    """
 
     def __init__(self) -> None:
+        """Crea una sala vacía en fase de espera."""
         self.players: dict[str, Player] = {}
         self.phase = "lobby"
         self.winner: str | None = None
         self.tick_number = 0
 
     def add_player(self, player_id: str, name: str) -> Player:
-        """Registra un jugador y le asigna un punto de aparición."""
+        """Registra a un jugador y asigna una aparición y un color libres.
+
+        Args:
+            player_id: Identificador único asignado por el servidor.
+            name: Nombre visible del piloto.
+
+        Returns:
+            El jugador creado.
+
+        Raises:
+            ValueError: Si la ronda ya empezó, la sala está llena o el ID existe.
+        """
         if self.phase != "lobby":
             raise ValueError("La partida ya comenzó")
         if len(self.players) >= MAX_PLAYERS:
@@ -77,11 +98,19 @@ class GameState:
         return player
 
     def remove_player(self, player_id: str) -> None:
-        """Elimina a un jugador desconectado de la sala."""
+        """Quita de la sala a un jugador desconectado antes de una ronda.
+
+        Durante una partida activa, el servidor conserva al piloto para que su
+        estela siga formando parte de las colisiones.
+        """
         self.players.pop(player_id, None)
 
     def start(self) -> None:
-        """Inicia la ronda cuando hay al menos dos participantes."""
+        """Cambia la sala a `running` si hay al menos dos participantes.
+
+        Raises:
+            ValueError: Si la sala no está esperando o tiene menos de dos jugadores.
+        """
         if self.phase != "lobby":
             raise ValueError("La sala no está esperando jugadores")
         if len(self.players) < 2:
@@ -89,7 +118,14 @@ class GameState:
         self.phase = "running"
 
     def set_direction(self, player_id: str, direction: str) -> bool:
-        """Guarda un giro válido para el siguiente paso de movimiento."""
+        """Programa un giro cardinal para el siguiente paso de simulación.
+
+        No acepta giros durante la sala de espera, para pilotos eliminados ni
+        cambios que inviertan la dirección actual.
+
+        Returns:
+            `True` si se guardó el giro; `False` si el evento no es válido.
+        """
         player = self.players.get(player_id)
         if self.phase != "running" or player is None or not player.alive:
             return False
@@ -102,7 +138,13 @@ class GameState:
         return True
 
     def tick(self) -> None:
-        """Avanza una celda y resuelve todas las colisiones del mismo paso."""
+        """Avanza un paso y resuelve las colisiones de forma simultánea.
+
+        Primero calcula todos los destinos usando las estelas existentes y
+        después actualiza a los pilotos. Salirse del tablero, tocar una estela
+        o compartir destino elimina al piloto. La ronda termina con cero o un
+        superviviente.
+        """
         if self.phase != "running":
             return
 
@@ -146,7 +188,11 @@ class GameState:
             self.winner = survivors[0].player_id if survivors else None
 
     def restart(self) -> None:
-        """Devuelve la sala a espera y prepara otra ronda con los mismos jugadores."""
+        """Restablece posiciones, estelas y fase para iniciar otra ronda.
+
+        El servidor debe retirar antes a los jugadores desconectados. Se
+        conservan los identificadores, nombres y colores de los restantes.
+        """
         self.phase = "lobby"
         self.winner = None
         self.tick_number = 0
@@ -160,7 +206,11 @@ class GameState:
             player.trail = [(x, y)]
 
     def snapshot(self) -> dict:
-        """Crea una instantánea serializable para distribuir a los clientes."""
+        """Devuelve el estado público que el servidor transmite a los clientes.
+
+        La estructura usa tipos compatibles con JSON e incluye la fase,
+        dimensiones del tablero, ganador y estado visible de cada piloto.
+        """
         return {
             "phase": self.phase,
             "winner": self.winner,

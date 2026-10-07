@@ -34,7 +34,7 @@ Los instaladores no descargan ni instalan Python ni componentes del sistema oper
 
 ### Opciones de línea de comandos
 
-El servidor escucha en todas las interfaces de red por omisión:
+La dirección de escucha inicial se configura en `main()` de `server.py`. Para permitir conexiones desde otros equipos, indica la interfaz adecuada o escucha en todas las interfaces con `0.0.0.0`:
 
 ```text
 python server.py --host 0.0.0.0 --port 5050 --tick-rate 10
@@ -54,19 +54,13 @@ El servidor acepta entre 1 y 30 pasos por segundo; el valor inicial es 10. Presi
 - Evita los bordes y todas las estelas, incluida la propia.
 - La partida termina cuando queda como máximo un piloto con vida.
 
-## Pruebas
-
-Desde la carpeta del proyecto:
-
-```text
-python -m unittest discover -s tests -v
-```
-
-Las pruebas verifican reglas de juego y una sesión de integración con tres clientes TCP conectados al mismo servidor.
-
 ## Archivos principales
 
 - `server.py`: servidor TCP, aceptación de conexiones, hilos de clientes y simulación.
 - `client.py`: aplicación gráfica de escritorio y controles del jugador.
 - `game.py`: modelo autoritativo y reglas de movimiento/colisión.
+- `docs/manual-usuario.md`: pasos para abrir el juego, conectarse y jugar.
 - `docs/arquitectura.md`: diagramas, diseño de clases y protocolo de red.
+- `docs/codigo-fuente.md`: recorrido del estado de juego, mensajes y responsabilidades del código.
+
+Las pruebas automatizadas se usan durante el desarrollo y no forman parte de la descarga del juego.

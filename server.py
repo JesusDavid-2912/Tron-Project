@@ -31,9 +31,23 @@ class ClientConnection:
 
 
 class GameServer:
-    """Coordina conexiones, estado compartido, eventos y pasos de juego."""
+    """Coordina las conexiones TCP y mantiene el estado autoritativo.
+
+    Un bloqueo protege el modelo compartido. El hilo de aceptación crea un
+    hilo por cliente y el hilo de simulación avanza la partida y difunde estados.
+    """
 
     def __init__(self, host: str = "0.0.0.0", port: int = 5050, tick_rate: int = 10) -> None:
+        """Configura el servidor sin abrir todavía el puerto.
+
+        Args:
+            host: Interfaz de red donde se aceptan conexiones.
+            port: Puerto TCP, entre 0 y 65535; cero solicita uno disponible.
+            tick_rate: Pasos de simulación por segundo, entre 1 y 30.
+
+        Raises:
+            ValueError: Si la frecuencia está fuera del intervalo permitido.
+        """
         if tick_rate < 1 or tick_rate > 30:
             raise ValueError("La frecuencia debe estar entre 1 y 30 pasos por segundo")
         self.host = host
@@ -48,7 +62,15 @@ class GameServer:
         self.tick_thread: threading.Thread | None = None
 
     def start(self) -> None:
-        """Abre el puerto e inicia los hilos de aceptación y simulación."""
+        """Abre el socket de escucha e inicia aceptación y simulación.
+
+        El puerto efectivo queda disponible en `self.port`, incluso cuando se
+        configuró cero para pedir uno dinámico.
+
+        Raises:
+            RuntimeError: Si el servidor ya fue iniciado.
+            OSError: Si no se puede enlazar o abrir el puerto solicitado.
+        """
         if self.listener is not None:
             raise RuntimeError("El servidor ya está iniciado")
         listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -66,7 +88,7 @@ class GameServer:
         print(f"Servidor Tron escuchando en {self.host}:{self.port} (TCP)", flush=True)
 
     def serve_forever(self) -> None:
-        """Mantiene el proceso activo hasta recibir una interrupción."""
+        """Ejecuta el servidor hasta una interrupción y luego lo cierra."""
         self.start()
         try:
             self.stop_event.wait()
@@ -76,7 +98,11 @@ class GameServer:
             self.stop()
 
     def stop(self) -> None:
-        """Cierra el puerto y despierta los hilos que esperan datos."""
+        """Cierra el socket de escucha y las conexiones activas.
+
+        La operación puede llamarse al finalizar el proceso o desde una prueba;
+        los hilos de servicio son demonios y se espera brevemente su salida.
+        """
         self.stop_event.set()
         if self.listener is not None:
             self.listener.close()
@@ -90,6 +116,7 @@ class GameServer:
                 thread.join(timeout=1)
 
     def _accept_loop(self) -> None:
+        """Acepta conexiones y delega cada cliente a un hilo independiente."""
         while not self.stop_event.is_set():
             listener = self.listener
             if listener is None:
@@ -109,6 +136,12 @@ class GameServer:
             thread.start()
 
     def _handle_client(self, client_socket: socket.socket, address: tuple[str, int]) -> None:
+        """Valida el saludo, registra al piloto y procesa sus eventos.
+
+        El primer mensaje debe ser un objeto JSON `join`. Al terminar la
+        conexión, un piloto en sala se elimina; durante una ronda se marca
+        como eliminado para conservar su estela.
+        """
         connection: ClientConnection | None = None
         reader = None
         try:
@@ -171,6 +204,7 @@ class GameServer:
                 print(f"{connection.name} se desconectó", flush=True)
 
     def _handle_message(self, connection: ClientConnection, message: dict[str, Any]) -> None:
+        """Valida y aplica `direction`, `start` o `restart` bajo el bloqueo."""
         command = message.get("type")
         error: str | None = None
         with self.lock:
@@ -200,6 +234,11 @@ class GameServer:
                 self._close_socket(connection.sock)
 
     def _tick_loop(self) -> None:
+        """Avanza la simulación y transmite una instantánea a cada cliente.
+
+        La frecuencia se controla con `tick_rate`; también se envían estados
+        durante la sala de espera para actualizar la lista de pilotos.
+        """
         interval = 1 / self.tick_rate
         deadline = time.monotonic()
         while not self.stop_event.is_set():
@@ -218,6 +257,7 @@ class GameServer:
 
     @staticmethod
     def _send_raw_error(client_socket: socket.socket, message: str) -> None:
+        """Responde con un error JSON antes de registrar una conexión."""
         payload = json.dumps({"type": "error", "message": message}) + "\n"
         try:
             client_socket.sendall(payload.encode("utf-8"))
@@ -226,6 +266,7 @@ class GameServer:
 
     @staticmethod
     def _close_socket(client_socket: socket.socket) -> None:
+        """Apaga y cierra un socket; tolera que ya esté desconectado."""
         try:
             client_socket.shutdown(socket.SHUT_RDWR)
         except OSError:
@@ -237,6 +278,7 @@ class GameServer:
 
 
 def main() -> None:
+    """Lee las opciones de línea de comandos y ejecuta el servidor."""
     parser = argparse.ArgumentParser(description="Servidor TCP para Tron multijugador")
     parser.add_argument("--host", default="10.98.85.88", help="Interfaz de red (por defecto: todas)")
     parser.add_argument("--port", type=int, default=5050, help="Puerto TCP (por defecto: 5050)")

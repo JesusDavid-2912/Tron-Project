@@ -19,7 +19,7 @@ flowchart LR
     end
 ```
 
-El servidor puede ejecutarse en Linux, Windows o macOS. Los clientes pueden usar otro sistema operativo: el protocolo intercambia JSON UTF-8 delimitado por saltos de línea sobre TCP y no depende de la representación binaria local. El servidor escucha en `0.0.0.0:5050` por omisión.
+El servidor puede ejecutarse en Linux, Windows o macOS. Los clientes pueden usar otro sistema operativo: el protocolo intercambia JSON UTF-8 delimitado por saltos de línea sobre TCP y no depende de la representación binaria local. La dirección de escucha se configura en `main()` de `server.py` y puede cambiarse con `--host`; `0.0.0.0` permite escuchar en todas las interfaces.
 
 ## Hilos y sincronización
 
@@ -98,11 +98,9 @@ classDiagram
 flowchart TD
     client[client.py\nTkinter + socket] -->|TCP / JSON| server[server.py\nsocket + threading]
     server --> game[game.py\nreglas y estado]
-    testgame[tests/test_game.py] --> game
-    testserver[tests/test_server.py] --> server
 ```
 
-`game.py` no depende de red ni de interfaz gráfica, lo que permite probar las reglas de manera aislada. `server.py` depende del modelo y de la biblioteca estándar. `client.py` depende de Tkinter y sockets. Las pruebas utilizan `unittest` y sockets locales.
+`game.py` no depende de red ni de interfaz gráfica, por lo que sus reglas pueden validarse de manera aislada. `server.py` depende del modelo y de la biblioteca estándar. `client.py` depende de Tkinter y sockets. La guía [codigo-fuente.md](codigo-fuente.md) describe los contratos y el flujo entre estos módulos.
 
 ## Persistencia y seguridad
 

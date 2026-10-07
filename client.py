@@ -24,9 +24,19 @@ SANS_FONT = "DejaVu Sans"
 
 
 class NetworkClient:
-    """Lee y escribe mensajes de una conexión TCP sin bloquear la interfaz."""
+    """Gestiona el intercambio de mensajes TCP sin bloquear Tkinter.
+
+    Un hilo lector coloca los mensajes recibidos en `events`; la interfaz los
+    procesa después desde su propio bucle de eventos.
+    """
 
     def __init__(self, sock: socket.socket, events: queue.Queue) -> None:
+        """Asocia un socket y una cola, e inicia el hilo receptor.
+
+        Args:
+            sock: Conexión TCP establecida con el servidor.
+            events: Cola donde se depositan mensajes y avisos de desconexión.
+        """
         self.sock = sock
         self.events = events
         self.send_lock = threading.Lock()
@@ -35,7 +45,12 @@ class NetworkClient:
         self.reader_thread.start()
 
     def send(self, message: dict[str, Any]) -> None:
-        """Codifica un evento como una línea JSON y lo envía al servidor."""
+        """Envía un objeto JSON terminado en salto de línea.
+
+        El bloqueo evita que dos hilos intercalen bytes en el mismo socket.
+        Raises:
+            OSError: Si el socket falla durante el envío.
+        """
         payload = json.dumps(message, separators=(",", ":"), ensure_ascii=False) + "\n"
         with self.send_lock:
             if self.closed.is_set():
@@ -43,7 +58,7 @@ class NetworkClient:
             self.sock.sendall(payload.encode("utf-8"))
 
     def close(self) -> None:
-        """Cierra el socket y desbloquea el hilo lector."""
+        """Cierra la conexión y permite que el hilo lector termine."""
         self.closed.set()
         try:
             self.sock.shutdown(socket.SHUT_RDWR)
@@ -55,6 +70,7 @@ class NetworkClient:
             pass
 
     def _read_loop(self) -> None:
+        """Reconstruye mensajes delimitados por línea y los encola."""
         buffer = bytearray()
         try:
             while not self.closed.is_set():
@@ -79,9 +95,21 @@ class NetworkClient:
 
 
 class TronClientApp:
-    """Construye la interfaz e integra la red con el bucle de Tkinter."""
+    """Construye la interfaz y conecta sus eventos con el servidor.
+
+    La red nunca modifica widgets desde hilos secundarios: los mensajes pasan
+    por una cola y se procesan periódicamente en el hilo de Tkinter.
+    """
 
     def __init__(self, root: tk.Tk, default_host: str, default_name: str, default_port: int) -> None:
+        """Prepara el estado local, crea la ventana y registra sus eventos.
+
+        Args:
+            root: Ventana principal de Tkinter.
+            default_host: Dirección inicial del servidor.
+            default_name: Nombre inicial del piloto.
+            default_port: Puerto TCP inicial.
+        """
         self.root = root
         self.root.title("TRON // Lightcycle Arena")
         self.root.geometry("1240x820")
@@ -109,6 +137,7 @@ class TronClientApp:
         self._draw_board()
 
     def _build_ui(self) -> None:
+        """Crea el tablero, el panel de conexión y los controles."""
         header = tk.Frame(self.root, bg=BACKGROUND)
         header.pack(fill="x", padx=24, pady=(18, 12))
         brand = tk.Frame(header, bg=BACKGROUND)
@@ -170,6 +199,7 @@ class TronClientApp:
         ).pack(fill="x")
 
     def _section_title(self, parent: tk.Widget, title: str) -> None:
+        """Agrega un encabezado uniforme a una sección del panel."""
         tk.Label(
             parent,
             text=title,
@@ -180,6 +210,7 @@ class TronClientApp:
         ).pack(fill="x", pady=(0, 9))
 
     def _build_connection_section(self, parent: tk.Frame) -> None:
+        """Construye los campos de conexión y el botón para entrar."""
         self._section_title(parent, "CONEXIÓN TCP")
         self._make_entry(parent, "Servidor / IP", self.host_var)
         self._make_entry(parent, "Puerto", self.port_var)
@@ -200,6 +231,7 @@ class TronClientApp:
         self.connect_button.pack(fill="x", pady=(3, 22))
 
     def _make_entry(self, parent: tk.Frame, label: str, variable: tk.StringVar) -> None:
+        """Agrega un campo de texto asociado a una variable de Tkinter."""
         tk.Label(
             parent,
             text=label,
@@ -223,12 +255,14 @@ class TronClientApp:
         entry.pack(fill="x", ipady=7)
 
     def _build_roster_section(self, parent: tk.Frame) -> None:
+        """Prepara el área donde se muestran los pilotos conectados."""
         self._section_title(parent, "PILOTOS EN SALA")
         self.roster_frame = tk.Frame(parent, bg=BACKGROUND)
         self.roster_frame.pack(fill="x", pady=(0, 21))
         self._render_roster()
 
     def _build_controls_section(self, parent: tk.Frame) -> None:
+        """Crea el control para iniciar/reiniciar y muestra las teclas."""
         self._section_title(parent, "CARRERA")
         self.start_button = tk.Button(
             parent,
@@ -257,6 +291,7 @@ class TronClientApp:
         ).pack(fill="x")
 
     def _connect(self) -> None:
+        """Valida los datos del formulario e inicia una conexión asíncrona."""
         if self.network is not None or self.connecting:
             return
         host = self.host_var.get().strip()
@@ -284,6 +319,7 @@ class TronClientApp:
         ).start()
 
     def _connect_worker(self, host: str, port: int, name: str) -> None:
+        """Establece el socket fuera del hilo gráfico y envía el saludo."""
         try:
             sock = socket.create_connection((host, port), timeout=5)
             sock.settimeout(None)
@@ -295,6 +331,7 @@ class TronClientApp:
             self.events.put((None, {"type": "connect_error", "message": str(exc)}))
 
     def _poll_events(self) -> None:
+        """Consume mensajes de red y actualiza la interfaz en el hilo principal."""
         while True:
             try:
                 network, message = self.events.get_nowait()
@@ -336,11 +373,13 @@ class TronClientApp:
         self.root.after(40, self._poll_events)
 
     def _update_game_view(self) -> None:
+        """Redibuja el tablero y la lista tras recibir una instantánea."""
         self._render_roster()
         self._draw_board()
         self._refresh_controls()
 
     def _render_roster(self) -> None:
+        """Muestra nombre, color y estado de cada piloto de la instantánea."""
         if self.roster_frame is None:
             return
         for child in self.roster_frame.winfo_children():
@@ -378,6 +417,7 @@ class TronClientApp:
                 tk.Label(row, text="FUERA", bg=BACKGROUND, fg=RED, font=(MONO_FONT, 7)).pack(side="right")
 
     def _refresh_controls(self) -> None:
+        """Ajusta etiquetas y disponibilidad según conexión y fase."""
         if self.connect_button is not None:
             self.connect_button.configure(
                 state="disabled" if self.network is not None or self.connecting else "normal",
@@ -412,6 +452,7 @@ class TronClientApp:
             self.start_button.configure(text="CARRERA EN CURSO", state="disabled")
 
     def _send_race_action(self) -> None:
+        """Solicita iniciar la ronda o reiniciarla cuando terminó."""
         if self.network is None or self.snapshot is None:
             return
         action = "start" if self.snapshot["phase"] == "lobby" else "restart"
@@ -421,6 +462,7 @@ class TronClientApp:
             self.notice_var.set("No se pudo enviar la acción al servidor.")
 
     def _on_key_press(self, event: tk.Event) -> None:
+        """Envía giros durante la ronda, excepto mientras se edita un campo."""
         if isinstance(self.root.focus_get(), tk.Entry):
             return
         direction_by_key = {
@@ -448,6 +490,7 @@ class TronClientApp:
             self.notice_var.set("No se pudo enviar el movimiento.")
 
     def _draw_board(self) -> None:
+        """Dibuja la cuadrícula, las estelas y los mensajes de fase."""
         if not hasattr(self, "canvas"):
             return
         canvas = self.canvas
@@ -510,6 +553,7 @@ class TronClientApp:
             self._draw_overlay(left, top, board_width * cell, board_height * cell, message, "PULSA JUGAR OTRA VEZ")
 
     def _draw_overlay(self, x: float, y: float, width: float, height: float, title: str, detail: str) -> None:
+        """Dibuja un mensaje centrado dentro del área del tablero."""
         center_x = x + width / 2
         center_y = y + height / 2
         self.canvas.create_rectangle(
@@ -536,12 +580,14 @@ class TronClientApp:
         )
 
     def _on_close(self) -> None:
+        """Cierra la conexión activa antes de destruir la ventana."""
         if self.network is not None:
             self.network.close()
         self.root.destroy()
 
 
 def main() -> None:
+    """Procesa opciones iniciales y arranca el bucle de Tkinter."""
     parser = argparse.ArgumentParser(description="Cliente gráfico para Tron multijugador")
     parser.add_argument("--host", default="127.0.0.1", help="Dirección del servidor")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Puerto TCP del servidor")
