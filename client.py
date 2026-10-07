@@ -310,7 +310,7 @@ class TronClientApp:
             message_type = message.get("type")
             if message_type == "connected":
                 self.connecting = False
-                self.notice_var.set("Conectado. Espera a que haya tres pilotos para iniciar.")
+                self.notice_var.set("Conectado. Espera a que haya dos pilotos para iniciar.")
             elif message_type == "welcome":
                 self.player_id = message.get("player_id")
                 self.snapshot = message.get("snapshot")
@@ -404,7 +404,7 @@ class TronClientApp:
         if self.network is None:
             self.start_button.configure(text="INICIAR CARRERA", state="disabled")
         elif phase == "lobby":
-            enabled = count >= 3
+            enabled = count >= 2
             self.start_button.configure(text="INICIAR CARRERA", state="normal" if enabled else "disabled")
         elif phase == "finished":
             self.start_button.configure(text="JUGAR OTRA VEZ", state="normal")
@@ -497,8 +497,8 @@ class TronClientApp:
         phase = self.snapshot.get("phase") if self.snapshot else "lobby"
         if phase == "lobby":
             count = len(self.snapshot.get("players", [])) if self.snapshot else 0
-            message = "ESPERANDO PILOTOS" if count < 3 else "SALA LISTA"
-            detail = f"{count} / 3 PILOTOS MÍNIMO"
+            message = "ESPERANDO PILOTOS" if count < 2 else "SALA LISTA"
+            detail = f"{count} / 2 PILOTOS MÍNIMO"
             self._draw_overlay(left, top, board_width * cell, board_height * cell, message, detail)
         elif phase == "finished":
             winner_id = self.snapshot.get("winner")

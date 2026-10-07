@@ -10,11 +10,15 @@ class GameStateTests(unittest.TestCase):
             game.add_player(player_id, player_id)
         return game
 
-    def test_requires_three_players_to_start(self) -> None:
+    def test_requires_two_players_to_start(self) -> None:
         game = GameState()
         game.add_player("one", "One")
-        with self.assertRaisesRegex(ValueError, "al menos 3"):
+        with self.assertRaisesRegex(ValueError, "al menos 2"):
             game.start()
+
+        game.add_player("two", "Two")
+        game.start()
+        self.assertEqual(game.phase, "running")
 
     def test_players_move_simultaneously_and_keep_trails(self) -> None:
         game = self.make_game()

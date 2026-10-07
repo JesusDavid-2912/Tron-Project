@@ -1,6 +1,6 @@
 # Tron: Lightcycle Arena
 
-Juego multijugador inspirado en Tron, implementado en Python. Un jugador inicia una sala y los demás se conectan desde la misma red local o desde equipos que puedan alcanzar la dirección IP del servidor. La partida admite de 3 a 6 jugadores.
+Juego multijugador inspirado en Tron, implementado en Python. Un jugador inicia una sala y los demás se conectan desde la misma red local o desde equipos que puedan alcanzar la dirección IP del servidor. La partida admite de 2 a 6 jugadores.
 
 ## Requisitos
 
@@ -17,7 +17,7 @@ Descarga o copia la carpeta completa en cada equipo. Python debe estar instalado
 2. Si los jugadores están en otros equipos, permite conexiones TCP entrantes al puerto `5050` en el firewall del servidor. Los equipos deben poder comunicarse entre sí; una conexión a través de Internet también requiere configurar el router y su firewall.
 3. En cada equipo jugador, ejecuta `iniciar_cliente.bat` en Windows o `./iniciar_cliente.sh` en Linux/macOS. Alternativamente: `python client.py` o `python3 client.py`.
 4. En el cliente, introduce la IP del servidor, el puerto y el nombre del piloto; pulsa **CONECTAR**.
-5. Cuando haya al menos tres jugadores en la sala, cualquiera puede pulsar **INICIAR CARRERA**. Gana la última moto que siga en pista. Cuando termina una ronda, cualquier jugador conectado puede iniciar otra.
+5. Cuando haya al menos dos jugadores en la sala, cualquiera puede pulsar **INICIAR CARRERA**. Gana la última moto que siga en pista. Cuando termina una ronda, cualquier jugador conectado puede iniciar otra.
 
 Para probar en un solo equipo, inicia el servidor y abre tres instancias de `client.py`, cada una con un nombre distinto.
 
